@@ -17,25 +17,27 @@ var mediaTypes = map[string]MediaType{}
 
 type MediaType struct {
 	Count int
-	Size float64
+	Size  float64
 }
 
 func main() {
+	var err error
+	server, err := tika.NewServer("tika-server-1.26.jar", "")
+	if err != nil {
+		panic(err)
+	}
+	err = server.Start(context.Background())
+	if err != nil {
+		panic(err)
+	}
 
-	//start a tika server
-	ts, err := tika.NewServer("tika-server-1.26.jar", "")
+	client := tika.NewClient(nil, server.URL())
 	if err != nil {
 		panic(err)
 	}
-	err = ts.Start(context.Background())
-	if err != nil {
-		panic(err)
-	}
-	defer ts.Stop()
-	tc := tika.NewClient(nil, ts.URL())
 
 	tarFileLoc := "/home/menneric/Downloads/asiapac5.tgz"
-	tarFile, err := os.Open(tarFileLoc);
+	tarFile, err := os.Open(tarFileLoc)
 	if err != nil {
 		panic(err)
 	}
@@ -45,6 +47,7 @@ func main() {
 	if err != nil {
 		fmt.Println("There is a problem with os.Open")
 	}
+
 	tr := tar.NewReader(archive)
 	for {
 		hdr, err := tr.Next()
@@ -57,15 +60,22 @@ func main() {
 
 		if hdr.Typeflag == tar.TypeReg {
 			tmpLoc := "/home/menneric/Elysium/tmpfile"
-			tmpfile,err := os.Create(tmpLoc)
-			if err != nil { panic(err) }
-			_, err = io.Copy(tmpfile, tr); if err != nil {
+			tmpfile, err := os.Create(tmpLoc)
+			if err != nil {
+				panic(err)
+			}
+			_, err = io.Copy(tmpfile, tr)
+			if err != nil {
 				panic(err)
 			}
 			tmp, err := os.Open(tmpLoc)
-			if err != nil { panic(err) }
-			detect, err := tc.Detect(context.Background(), tmp)
-			if err != nil { panic(err) }
+			if err != nil {
+				panic(err)
+			}
+			detect, err := client.Detect(context.Background(), tmp)
+			if err != nil {
+				panic(err)
+			}
 
 			fmt.Print(hdr.Name + ",")
 
@@ -79,19 +89,19 @@ func main() {
 			}
 		}
 	}
-
-	output,_ := os.Create("report.tsv")
+	server.Shutdown(context.Background())
+	output, _ := os.Create("report.tsv")
 	defer output.Close()
 	writer := bufio.NewWriter(output)
 
-	for k,v := range mediaTypes {
-		writer.WriteString(fmt.Sprintf("%s\t%d\t%s\n",k, v.Count,ByteMaths.ToHuman(v.Size)))
+	for k, v := range mediaTypes {
+		writer.WriteString(fmt.Sprintf("%s\t%d\t%s\n", k, v.Count, ByteMaths.ToHuman(v.Size)))
 		writer.Flush()
 	}
 }
 
 func contains(s string) bool {
-	for k,_ := range mediaTypes {
+	for k, _ := range mediaTypes {
 		if k == s {
 			return true
 		}
